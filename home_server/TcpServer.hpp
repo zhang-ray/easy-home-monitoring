@@ -2,6 +2,7 @@
 #include <deque>
 #include <list>
 #include <memory>
+#include <array>
 #include <set>
 #include <utility>
 #include <boost/asio.hpp>
@@ -9,12 +10,13 @@
 #include <cstdlib>
 #include <iostream>
 #include <cstring>
-#include "NetPacket.hpp"
 #include "ReturnType.hpp"
 #include "Logger.hpp"
 #include <functional>
 #include "Room.hpp"
 #include "Server.hpp"
+
+#include <fstream>
 
 
 
@@ -42,7 +44,8 @@ public:
 
         BOOST_LOG_TRIVIAL(info) << "on accepted: " << socket_.remote_endpoint().address();
 
-        readHeader();
+        ofs_.open("wtf.h264");
+        readPayload();
 
         return 0;
     }
@@ -53,7 +56,7 @@ public:
         bool write_in_progress = !write_msgs_.empty();
         write_msgs_.push_back(msg);
         if (!write_in_progress) {
-            write();
+            //write();
         }
     }
 
@@ -63,11 +66,17 @@ public:
     }
 
 private:
-    void readHeader() {
+    void readPayload() {
         auto self(shared_from_this());
-        boost::asio::async_read(socket_, boost::asio::buffer(read_msg_.header(), NetPacket::FixHeaderLength),
-            [this, self](boost::system::error_code ec, std::size_t /*length*/) {
-            if (!ec && read_msg_.checkHeader()) {
+        boost::asio::async_read(socket_, boost::asio::buffer(packet_.data(), packet_.size()),
+            [this, self](boost::system::error_code ec, std::size_t length) {
+            if (!ec) {
+
+                {
+                    BOOST_LOG_TRIVIAL(debug) << "Got packet_ @" << length;
+                    ofs_.write(packet_.data(), length);
+                }
+
                 readPayload();
             }
             else {
@@ -77,44 +86,14 @@ private:
     }
 
 
-    void readPayload() {
-        auto self(shared_from_this());
-        boost::asio::async_read(socket_, boost::asio::buffer(read_msg_.payload(), read_msg_.payloadLength()),
-            [this, self](boost::system::error_code ec, std::size_t /*length*/) {
-            if (!ec) {
-                room_.processClientMessagePayload(read_msg_, shared_from_this());
-                readHeader();
-            }
-            else {
-                room_.leave(shared_from_this());
-            }
-        });
-    }
-
-
-
-
-    void write() {
-        auto self(shared_from_this());
-        boost::asio::async_write(socket_, boost::asio::buffer(write_msgs_.front().header(), write_msgs_.front().wholePackLength()),
-            [this, self](boost::system::error_code ec, std::size_t /*length*/) {
-            if (!ec) {
-                write_msgs_.pop_front();
-                if (!write_msgs_.empty()) {
-                    write();
-                }
-            }
-            else {
-                room_.leave(shared_from_this());
-            }
-        });
-    }
 
 private:
     boost::asio::ip::tcp::socket socket_;
     Room& room_;
-    NetPacket read_msg_;
+    std::array<char, 1<<10> packet_;
     ClientPacketQueue write_msgs_;
+
+    std::ofstream ofs_;
 };
 
 
