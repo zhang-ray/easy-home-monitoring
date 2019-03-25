@@ -6,3 +6,11 @@ The main purpose of this sub-project is to use old Android mobile phone as monit
 - Encode it as H.264 picture (no any other wrapper)
 - Send it to home_server via TCP
 
+
+For running this Camera well, you should make sure that your Android device:
+
+- MainActivity always on the top of screen;
+- Never let your screen sleep;
+- Keep the battery high;
+
+
